@@ -2,11 +2,16 @@
 
 declare(strict_types=1);
 
-use DbBackup\Backup;
-use DbBackup\Config;
-use DbBackup\LoggerFactory;
-use DbBackup\MysqlDumper;
-use DbBackup\UploaderFactory;
+use BackupTool\Backup;
+use BackupTool\Config;
+use BackupTool\Database\Database;
+use BackupTool\Database\DatabaseBackup;
+use BackupTool\Files\FilesBackup;
+use BackupTool\Files\Path;
+use BackupTool\LoggerFactory;
+use BackupTool\Uploader\UploaderFactory;
+use Symfony\Component\Lock\LockFactory;
+use Symfony\Component\Lock\Store\FlockStore;
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
@@ -28,6 +33,12 @@ try {
 
 $logger = LoggerFactory::create($config);
 
+$lock = (new LockFactory(new FlockStore()))->createLock('backup-tool:' . realpath(__DIR__ . '/config.php'));
+if (!$lock->acquire()) {
+    $logger->error('Backup skipped: the previous run is still running');
+    exit(1);
+}
+
 try {
     $uploaders = [];
     foreach ($config->uploaders as $name => $settings) {
@@ -38,32 +49,23 @@ try {
     exit(1);
 }
 
-$backup = new Backup($config, new MysqlDumper($config), $uploaders, $logger);
+$backups = [
+    ...array_map(fn (Database $db) => new DatabaseBackup($db, $config, $uploaders, $logger), $config->databases),
+    ...array_map(fn (Path $path) => new FilesBackup($path, $config, $uploaders, $logger), $config->paths),
+];
 
-$logger->info(sprintf('Backup started: %d databases', count($config->databases)));
-$ok = [];
-$failed = [];
-foreach ($config->databases as $db) {
-    try {
-        $success = $backup->run($db);
-    } catch (Throwable $e) {
-        fwrite(STDERR, "{$db->id()}: {$e->getMessage()}\n");
-        $success = false;
-    }
-    if ($success) {
-        $ok[] = $db->id();
-    } else {
-        $failed[] = $db->id();
-    }
+$logger->info(sprintf('Backup started: %d databases, %d paths', count($config->databases), count($config->paths)));
+$results = ['ok' => [], 'failed' => []];
+
+/** @var Backup $backup */
+foreach ($backups as $backup) {
+    $results[$backup->run() ? 'ok' : 'failed'][] = $backup->id;
 }
 
-$summary = sprintf('Backup finished: %d ok, %d failed', count($ok), count($failed));
-if ($ok) {
-    $summary .= "\nOK: " . implode(', ', $ok);
+$summary = sprintf('Backup finished: %d ok, %d failed', count($results['ok']), count($results['failed']));
+foreach (array_filter($results) as $status => $ids) {
+    $summary .= "\n$status: " . implode(', ', $ids);
 }
-if ($failed) {
-    $summary .= "\nFailed: " . implode(', ', $failed);
-}
-$failed ? $logger->error($summary) : $logger->notice($summary);
+$results['failed'] ? $logger->error($summary) : $logger->notice($summary);
 
-exit($failed ? 1 : 0);
+exit($results['failed'] ? 1 : 0);

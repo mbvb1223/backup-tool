@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'backup' => [
+    'db' => [
         'dir' => __DIR__ . '/backups',
         'keep_days' => 14,
 
@@ -15,6 +15,7 @@ return [
             '--hex-blob',
             '--no-tablespaces',
             '--default-character-set=utf8mb4',
+            '--set-gtid-purged=OFF',
         ],
 
         'connections' => [
@@ -39,6 +40,15 @@ return [
         ],
     ],
 
+    'files' => [
+        'dir' => __DIR__ . '/backups',
+        'keep_days' => 7,
+        'paths' => [
+            'shop_media' => ['path' => '/var/www/shop/public/media', 'exclude' => ['cache', '*.log']],
+            'nginx' => '/etc/nginx',
+        ],
+    ],
+
     'uploaders' => [
         'r2' => [
             'type' => 's3',
@@ -47,7 +57,7 @@ return [
             'bucket' => 'my-bucket',
             'key' => '',
             'secret' => '',
-            'prefix' => 'db-backup',
+            'prefix' => 'backup-tool',
             'keep_days' => 30,
         ],
     ],

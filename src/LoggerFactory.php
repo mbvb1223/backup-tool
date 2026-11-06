@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace BackupTool;
 
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\SlackWebhookHandler;
@@ -18,7 +18,7 @@ class LoggerFactory
     public static function create(Config $config): LoggerInterface
     {
         $formatter = new LineFormatter("[%datetime%] %level_name% %message%\n", 'Y-m-d H:i:s');
-        $logger = new Logger('db-backup');
+        $logger = new Logger('backup-tool');
 
         $logger->pushHandler((new StreamHandler($config->logFile))->setFormatter($formatter));
         if (stream_isatty(STDOUT)) {
