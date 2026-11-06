@@ -32,7 +32,6 @@ try {
 
 $logger = LoggerFactory::create($config);
 
-// keyed on the real config path: __DIR__ changes with every deploy
 $lock = (new LockFactory(new FlockStore()))->createLock('backup-tool:' . realpath(__DIR__ . '/config.php'));
 if (!$lock->acquire()) {
     $logger->error('Backup skipped: the previous run is still running');

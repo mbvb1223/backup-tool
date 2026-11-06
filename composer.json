@@ -4,7 +4,8 @@
         "php": ">=8.2",
         "aws/aws-sdk-php": "^3.0",
         "symfony/lock": "^7.4",
-        "monolog/monolog": "^3.0"
+        "monolog/monolog": "^3.0",
+        "ext-zlib": "*"
     },
     "require-dev": {
         "deployer/deployer": "^8.0",

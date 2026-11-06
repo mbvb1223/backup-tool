@@ -15,7 +15,7 @@ return [
             '--hex-blob',
             '--no-tablespaces',
             '--default-character-set=utf8mb4',
-            '--set-gtid-purged=OFF', // MySQL only: remove it for MariaDB
+            '--set-gtid-purged=OFF',
         ],
 
         'connections' => [

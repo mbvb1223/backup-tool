@@ -12,7 +12,6 @@ use RuntimeException;
 
 readonly class DatabaseBackup extends Backup
 {
-    /** @param array<string, Uploader> $uploaders */
     public function __construct(private Database $db, private Config $config, array $uploaders, LoggerInterface $logger)
     {
         parent::__construct($db->id(), $config->dbDir, $config->dbKeepDays, $uploaders, $logger);
@@ -28,7 +27,6 @@ readonly class DatabaseBackup extends Backup
         $db = $this->db;
         $credentialsFile = $this->writeCredentialsFile();
         try {
-            // --defaults-file, not --defaults-extra-file: ~/.my.cnf would override the configured user and password
             $mysqldump = [$this->config->mysqldump, "--defaults-file=$credentialsFile", ...$this->config->mysqldumpOptions];
 
             $commands = [];
@@ -53,7 +51,6 @@ readonly class DatabaseBackup extends Backup
             }
         }
 
-        // tempnam() creates the file with mode 0600
         $path = tempnam(sys_get_temp_dir(), 'backup-tool');
         if ($path === false || file_put_contents($path, implode("\n", $lines) . "\n") === false) {
             throw new RuntimeException('cannot write the mysqldump credentials file');

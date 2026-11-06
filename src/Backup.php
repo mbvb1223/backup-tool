@@ -14,7 +14,6 @@ abstract readonly class Backup
 {
     private string $dir;
 
-    /** @param array<string, Uploader> $uploaders */
     public function __construct(
         public string $id,
         string $rootDir,
@@ -39,7 +38,6 @@ abstract readonly class Backup
         }
     }
 
-    /** @param list<list<string>> $commands run one after another, their joined output is gzipped into $file */
     protected function gzipOutput(array $commands, string $file): void
     {
         $out = fopen($file, 'wb');
@@ -171,7 +169,6 @@ abstract readonly class Backup
         }
     }
 
-    // fclose() returns true even when the final write fails, so every write is checked
     private function writeChunk($out, string $data): void
     {
         if ($data !== '' && fwrite($out, $data) !== strlen($data)) {
