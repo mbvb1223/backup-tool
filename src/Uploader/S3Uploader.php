@@ -40,30 +40,29 @@ readonly class S3Uploader implements Uploader
         return new self(new S3Client($options), $settings['bucket'], trim($settings['prefix'] ?? '', '/'), $settings['keep_days'] ?? null);
     }
 
-    public function upload(string $file, string $dir): void
+    public function upload(string $file, string $folder): void
     {
-        $dir = $this->key("$dir/");
-        $key = $dir . basename($file);
-        $this->s3->upload($this->bucket, $key, Utils::tryFopen($file, 'r'), acl: null);
+        $this->s3->upload($this->bucket, $this->prefix($folder) . basename($file), Utils::tryFopen($file, 'r'), acl: null);
+    }
 
-        if ($this->keepDays !== null) {
-            $this->deleteOldBackups($dir, $key);
+    public function deleteOldBackups(string $folder, string $newFile): void
+    {
+        if ($this->keepDays === null) {
+            return;
         }
-    }
 
-    private function key(string $name): string
-    {
-        return $this->prefix === '' ? $name : "$this->prefix/$name";
-    }
-
-    private function deleteOldBackups(string $dir, string $newKey): void
-    {
+        $prefix = $this->prefix($folder);
         $cutoff = time() - $this->keepDays * 86400;
-        $objects = $this->s3->getPaginator('ListObjectsV2', ['Bucket' => $this->bucket, 'Prefix' => $dir, 'Delimiter' => '/']);
+        $objects = $this->s3->getPaginator('ListObjectsV2', ['Bucket' => $this->bucket, 'Prefix' => $prefix, 'Delimiter' => '/']);
         foreach ($objects->search('Contents[]') as $object) {
-            if ($object['Key'] !== $newKey && str_ends_with($object['Key'], '.gz') && $object['LastModified']->getTimestamp() < $cutoff) {
+            if ($object['Key'] !== $prefix . basename($newFile) && str_ends_with($object['Key'], '.gz') && $object['LastModified']->getTimestamp() < $cutoff) {
                 $this->s3->deleteObject(['Bucket' => $this->bucket, 'Key' => $object['Key']]);
             }
         }
+    }
+
+    private function prefix(string $folder): string
+    {
+        return ltrim("$this->prefix/$folder/", '/');
     }
 }

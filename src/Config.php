@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace BackupTool;
 
 use BackupTool\Database\Database;
-use BackupTool\Files\Files;
+use BackupTool\Files\Path;
 use RuntimeException;
 
 readonly class Config
@@ -43,10 +43,20 @@ readonly class Config
         if (!$databases && !$paths) {
             throw new RuntimeException("Nothing to back up in $file: add 'db' => ['connections' => ...] or 'files' => ['paths' => ...]");
         }
-        $dbKeepDays = $db['keep_days'] ?? null;
-        $filesKeepDays = $files['keep_days'] ?? null;
+        if ($db && !$databases) {
+            throw new RuntimeException("'db' has no databases: add 'connections' => [name => ['databases' => [...]]]");
+        }
+        if ($files && !$paths) {
+            throw new RuntimeException("'files' has no paths: add 'paths' => [name => path]");
+        }
+
+        $dbKeepDays = self::keepDays($db, 'db');
+        $filesKeepDays = self::keepDays($files, 'files');
+        foreach ($uploaders as $name => $settings) {
+            self::keepDays($settings, "uploaders.$name");
+        }
         if (($dbKeepDays === 0 || $filesKeepDays === 0) && !$uploaders) {
-            throw new RuntimeException("'keep_days' => 0 deletes every dump right away: add an uploader or keep them longer");
+            throw new RuntimeException("'keep_days' => 0 deletes every backup right away: add an uploader or keep them longer");
         }
 
         return new self(
@@ -68,17 +78,17 @@ readonly class Config
     {
         $databases = [];
         foreach ($connections as $connection => $server) {
-            foreach ($server['databases'] ?? [] as $name => $tables) {
-                if (is_int($name)) {
-                    [$name, $tables] = [$tables, []];
+            foreach ($server['databases'] ?? throw new RuntimeException("db.connections.$connection: 'databases' is not set") as $name => $options) {
+                if (is_string($options)) {
+                    [$name, $options] = [$options, []];
                 }
                 $databases[] = new Database(
                     connection: (string) $connection,
                     name: (string) $name,
                     server: $server,
-                    include: $tables['include'] ?? [],
-                    exclude: $tables['exclude'] ?? [],
-                    excludeData: $tables['exclude_data'] ?? [],
+                    include: $options['include'] ?? [],
+                    exclude: $options['exclude'] ?? [],
+                    excludeData: $options['exclude_data'] ?? [],
                 );
             }
         }
@@ -88,18 +98,28 @@ readonly class Config
 
     private static function paths(array $entries): array
     {
-        $files = [];
+        $paths = [];
         foreach ($entries as $name => $entry) {
             if (is_string($entry)) {
                 $entry = ['path' => $entry];
             }
-            $files[] = new Files(
+            $paths[] = new Path(
                 name: (string) $name,
                 path: rtrim($entry['path'] ?? '', '/'),
                 exclude: $entry['exclude'] ?? [],
             );
         }
 
-        return $files;
+        return $paths;
+    }
+
+    private static function keepDays(array $settings, string $section): ?int
+    {
+        $days = $settings['keep_days'] ?? null;
+        if ($days !== null && (!is_int($days) || $days < 0)) {
+            throw new RuntimeException("'$section.keep_days' must be a whole number of days >= 0, or left out to keep forever");
+        }
+
+        return $days;
     }
 }

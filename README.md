@@ -62,9 +62,9 @@ return [
 `db`:
 
 - `dir` – where dumps are written, default `backups/` next to `config.php`. Keep it outside any web root.
-- `keep_days` – local dumps older than this are deleted after each run. `0` deletes the new dump as soon as every uploader succeeded (if one fails, it stays until the next good run). Leave it out to keep local dumps forever.
-- `mysqldump_options` – flags passed to `mysqldump`.
-- `connections` – one entry per server; the key (`main`) is just a label used in the backup path. `databases` also accepts a plain list: `['analytics', 'crm']`.
+- `keep_days` – local dumps older than this are deleted after each run. `0` deletes the new dump as soon as every uploader succeeded (if one fails, it stays until the next good run). Leave it out to keep local dumps forever. Must be a whole number `>= 0`.
+- `mysqldump_options` – flags passed to `mysqldump`. Keep `--set-gtid-purged=OFF` on MySQL: on a server with GTID on, the dump can't be restored without it (and `mysqldump` needs the `RELOAD` grant). MariaDB doesn't know the flag, remove it there.
+- `connections` – one entry per server; the key (`main`) is just a label used in the backup path. `databases` also accepts a plain list: `['analytics', 'crm']`. `mysqldump` gets only these credentials (`--defaults-file`), so `~/.my.cnf` and `/etc/my.cnf` are not read; put other client flags (e.g. `--ssl-ca=...`) in `mysqldump_options`.
 - Per database: `include` (only these tables), `exclude` (skip these tables), `exclude_data` (keep these tables' structure, skip their rows – e.g. sessions, cache). `exclude` and `exclude_data` can be combined; `include` cannot be combined with either.
 
 Output: `<db.dir>/db/<connection>/<database>/<database>_YYYYmmdd_HHMMSS.sql.gz`
@@ -72,7 +72,7 @@ Output: `<db.dir>/db/<connection>/<database>/<database>_YYYYmmdd_HHMMSS.sql.gz`
 `files` (runs in the same `php index.php`, after the databases):
 
 - `dir`, `keep_days` – same as in `db`, but for the archives only. `dir` defaults to `backups/` too.
-- `paths` – folders or single files, one `.tar.gz` per entry per run (full copy every time). `exclude` takes `tar --exclude` patterns. The cron user must be able to read everything; exclude files that change while the backup runs (logs, cache), `tar` fails on them.
+- `paths` – folders or single files, one `.tar.gz` per entry per run (full copy every time). `exclude` takes `tar --exclude` patterns. A symlinked path is followed: the archive holds the folder it points to. The cron user must be able to read everything; exclude files that change while the backup runs (logs, cache), `tar` fails on them.
 
 Output: `<files.dir>/files/<name>/<name>_YYYYmmdd_HHMMSS.tar.gz`
 
@@ -109,7 +109,7 @@ Set `endpoint`, `bucket`, `key` and `secret` directly in the uploader entry in `
 
 ## Slack
 
-Each run posts a summary to Slack: green `Backup finished: 3 ok, 0 failed`, or red when something failed. Each error (failed dump, failed upload, config error) is also posted right away. The detailed steps stay in `log.file`. One message per day means the backup ran; no message means it did not.
+Each run posts a summary to Slack: green `Backup finished: 3 ok, 0 failed`, or red when something failed. Each error (failed dump, failed upload, bad uploader settings) is also posted right away. Errors in `config.php` itself happen before logging starts: they only go to stderr (with cron, into `backup.log` through the redirect). The detailed steps stay in `log.file`. One message per day means the backup ran; no message means it did not.
 
 1. <https://api.slack.com/apps> → **Create New App** → *From scratch*, pick your workspace.
 2. **Incoming Webhooks** → turn on → **Add New Webhook to Workspace** → pick a channel.
@@ -129,7 +129,7 @@ If Slack is unreachable, the backup still runs; only the message is lost.
 php index.php   # backs up every database and file entry in config.php
 ```
 
-Exit code is non-zero if any backup failed. One whose previous backup is still running is skipped (and reported as an error).
+Exit code is non-zero if any backup failed. If the previous run is still running, the new one is skipped (and reported as an error).
 
 ## Deploy (Deployer)
 
@@ -138,6 +138,8 @@ cp .env.example .env   # set DEPLOY_HOST, DEPLOY_USER (your machine only)
 composer install
 vendor/bin/dep deploy
 ```
+
+If `DEPLOY_USER` isn't root, create the deploy path once: `ssh USER@HOST 'sudo install -d -o "$USER" /opt/backup-tool'`.
 
 Each deploy runs `composer install --no-dev` on the server (Deployer installs Composer into `.dep/` if missing).
 
@@ -167,7 +169,7 @@ On the server, `crontab -e` (check the PHP path with `which php`):
 30 2 * * * /usr/bin/php /opt/backup-tool/current/index.php >> /opt/backup-tool/shared/backup.log 2>&1
 ```
 
-The script writes `backup.log` itself; the redirect only catches PHP crashes that happen before logging starts.
+The script writes `backup.log` itself; the redirect only catches config errors and PHP crashes that happen before logging starts.
 
 ## Restore
 
@@ -178,7 +180,7 @@ mysql -h 127.0.0.1 -P 3306 -u root -p -e 'CREATE DATABASE IF NOT EXISTS project_
 gunzip < project_a_20261005_023000.sql.gz | mysql -h 127.0.0.1 -P 3306 -u root -p project_a
 ```
 
-Files: the archive holds the folder by its own name (`media/...` for `/var/www/shop/public/media`), so extract it into the parent:
+Files: the archive holds the folder by its own name (`media/...` for `/var/www/shop/public/media`), so extract it into the parent (for a symlinked path, the parent of the folder it points to):
 
 ```sh
 tar -xzf shop_media_20261005_023000.tar.gz -C /var/www/shop/public

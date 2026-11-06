@@ -6,7 +6,7 @@ namespace BackupTool\Files;
 
 use RuntimeException;
 
-readonly class Files
+readonly class Path
 {
     public function __construct(
         public string $name,
