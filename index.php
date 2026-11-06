@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use DbBackup\Backup;
 use DbBackup\Config;
+use DbBackup\Database\DatabaseBackup;
+use DbBackup\Files\FilesBackup;
 use DbBackup\LoggerFactory;
-use DbBackup\MysqlDumper;
-use DbBackup\UploaderFactory;
+use DbBackup\Uploader\UploaderFactory;
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
@@ -38,32 +38,42 @@ try {
     exit(1);
 }
 
-$backup = new Backup($config, new MysqlDumper($config), $uploaders, $logger);
+$databaseBackup = new DatabaseBackup($config, $uploaders, $logger);
+$filesBackup = new FilesBackup($config, $uploaders, $logger);
 
-$logger->info(sprintf('Backup started: %d databases', count($config->databases)));
-$ok = [];
-$failed = [];
+$jobs = [];
 foreach ($config->databases as $db) {
-    try {
-        $success = $backup->run($db);
-    } catch (Throwable $e) {
-        fwrite(STDERR, "{$db->id()}: {$e->getMessage()}\n");
-        $success = false;
-    }
-    if ($success) {
-        $ok[] = $db->id();
-    } else {
-        $failed[] = $db->id();
-    }
+    $jobs['DB']["$db->connection/$db->name"] = fn () => $databaseBackup->run($db);
+}
+foreach ($config->paths as $files) {
+    $jobs['Files'][$files->name] = fn () => $filesBackup->run($files);
 }
 
-$summary = sprintf('Backup finished: %d ok, %d failed', count($ok), count($failed));
-if ($ok) {
-    $summary .= "\nOK: " . implode(', ', $ok);
+$logger->info(sprintf('Backup started: %d databases, %d files', count($config->databases), count($config->paths)));
+$ok = 0;
+$failed = 0;
+$details = '';
+foreach ($jobs as $type => $typeJobs) {
+    $results = ['OK' => [], 'failed' => []];
+    foreach ($typeJobs as $name => $job) {
+        try {
+            $success = $job();
+        } catch (Throwable $e) {
+            fwrite(STDERR, "$type $name: {$e->getMessage()}\n");
+            $success = false;
+        }
+        $results[$success ? 'OK' : 'failed'][] = $name;
+    }
+    foreach ($results as $status => $names) {
+        if ($names) {
+            $details .= "\n$type $status: " . implode(', ', $names);
+        }
+    }
+    $ok += count($results['OK']);
+    $failed += count($results['failed']);
 }
-if ($failed) {
-    $summary .= "\nFailed: " . implode(', ', $failed);
-}
+
+$summary = sprintf('Backup finished: %d ok, %d failed', $ok, $failed) . $details;
 $failed ? $logger->error($summary) : $logger->notice($summary);
 
 exit($failed ? 1 : 0);

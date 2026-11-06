@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace DbBackup;
 
+use Closure;
+use DbBackup\Uploader\Uploader;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\FlockStore;
 use Throwable;
 
-readonly class Backup
+abstract readonly class Backup
 {
     private LockFactory $locks;
 
     public function __construct(
-        private Config $config,
-        private MysqlDumper $dumper,
+        private string $dir,
+        private ?int $keepDays,
         /** @var array<string, Uploader> */
         private array $uploaders,
         private LoggerInterface $logger,
@@ -23,56 +25,57 @@ readonly class Backup
         $this->locks = new LockFactory(new FlockStore());
     }
 
-    public function run(Database $db): bool
+    /** @param Closure(string $dir): string $dump */
+    protected function runLocked(string $id, Closure $dump): bool
     {
-        $lock = $this->locks->createLock("db-backup:{$db->id()}");
+        $lock = $this->locks->createLock("db-backup:$id");
         if (!$lock->acquire()) {
-            $this->logger->error("{$db->id()}: skipped, previous backup is still running");
+            $this->logger->error("$id: skipped, previous backup is still running");
             return false;
         }
 
         try {
-            return $this->backup($db);
+            return $this->backup($id, $dump);
         } catch (Throwable $e) {
-            $this->logger->error("{$db->id()}: backup failed: {$e->getMessage()}");
+            $this->logger->error("$id: backup failed: {$e->getMessage()}");
             return false;
         } finally {
             $lock->release();
         }
     }
 
-    private function backup(Database $db): bool
+    private function backup(string $id, Closure $dump): bool
     {
-        $dir = "{$this->config->backupDir}/{$db->id()}";
+        $dir = "$this->dir/$id";
         $this->deletePartialDumps($dir);
 
         $started = microtime(true);
-        $file = $this->dumper->dump($db, $dir);
-        $this->logger->info(sprintf('%s: dumped to %s (%.1f MB, %.1fs)', $db->id(), $file, filesize($file) / 1048576, microtime(true) - $started));
+        $file = $dump($dir);
+        $this->logger->info(sprintf('%s: dumped to %s (%.1f MB, %.1fs)', $id, $file, filesize($file) / 1048576, microtime(true) - $started));
 
-        $allUploaded = $this->upload($db, $file);
+        $allUploaded = $this->upload($id, $file);
 
-        if ($this->config->keepDays > 0 || ($this->config->keepDays === 0 && $allUploaded)) {
+        if ($this->keepDays > 0 || ($this->keepDays === 0 && $allUploaded)) {
             $this->deleteOldDumps($dir, $file);
         }
-        if ($this->config->keepDays === 0 && $allUploaded) {
+        if ($this->keepDays === 0 && $allUploaded) {
             $this->delete($file);
         }
 
         return $allUploaded;
     }
 
-    private function upload(Database $db, string $file): bool
+    private function upload(string $id, string $file): bool
     {
         $allUploaded = true;
         foreach ($this->uploaders as $name => $uploader) {
             $started = microtime(true);
             try {
-                $uploader->upload($file, $db->id());
-                $this->logger->info(sprintf('%s: uploaded to %s (%.1fs)', $db->id(), $name, microtime(true) - $started));
+                $uploader->upload($file, $id);
+                $this->logger->info(sprintf('%s: uploaded to %s (%.1fs)', $id, $name, microtime(true) - $started));
             } catch (Throwable $e) {
                 $allUploaded = false;
-                $this->logger->error("{$db->id()}: upload to $name failed: {$e->getMessage()}");
+                $this->logger->error("$id: upload to $name failed: {$e->getMessage()}");
             }
         }
 
@@ -88,8 +91,8 @@ readonly class Backup
 
     private function deleteOldDumps(string $dir, string $newDump): void
     {
-        $cutoff = time() - $this->config->keepDays * 86400;
-        foreach (glob("$dir/*.sql.gz") ?: [] as $file) {
+        $cutoff = time() - $this->keepDays * 86400;
+        foreach (glob("$dir/*.gz") ?: [] as $file) {
             if ($file !== $newDump && filemtime($file) < $cutoff) {
                 $this->delete($file);
             }

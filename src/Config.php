@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace DbBackup;
 
+use DbBackup\Database\Database;
+use DbBackup\Files\Files;
 use RuntimeException;
 
 readonly class Config
 {
     public function __construct(
-        public string $backupDir,
-        public ?int $keepDays,
+        public string $dbDir,
+        public ?int $dbKeepDays,
         public string $mysqldump,
         public array $mysqldumpOptions,
         public array $databases,
+        public string $filesDir,
+        public ?int $filesKeepDays,
+        public array $paths,
         public array $uploaders,
         public string $logFile,
         public string $slackWebhook,
@@ -28,25 +33,31 @@ readonly class Config
         $dir = dirname(realpath($file));
         $config = require $file;
 
-        $backup = $config['backup'] ?? [];
+        $db = $config['db'] ?? [];
+        $files = $config['files'] ?? [];
         $uploaders = $config['uploaders'] ?? [];
         $log = $config['log'] ?? [];
 
-        $databases = self::databases($backup['connections'] ?? []);
-        if (!$databases) {
-            throw new RuntimeException("No databases in $file: add them under 'backup' => ['connections' => ...]");
+        $databases = self::databases($db['connections'] ?? []);
+        $paths = self::paths($files['paths'] ?? []);
+        if (!$databases && !$paths) {
+            throw new RuntimeException("Nothing to back up in $file: add 'db' => ['connections' => ...] or 'files' => ['paths' => ...]");
         }
-        $keepDays = $backup['keep_days'] ?? null;
-        if ($keepDays === 0 && !$uploaders) {
+        $dbKeepDays = $db['keep_days'] ?? null;
+        $filesKeepDays = $files['keep_days'] ?? null;
+        if (($dbKeepDays === 0 || $filesKeepDays === 0) && !$uploaders) {
             throw new RuntimeException("'keep_days' => 0 deletes every dump right away: add an uploader or keep them longer");
         }
 
         return new self(
-            backupDir: rtrim($backup['dir'] ?? "$dir/backups", '/'),
-            keepDays: $keepDays,
-            mysqldump: $backup['mysqldump'] ?? 'mysqldump',
-            mysqldumpOptions: $backup['mysqldump_options'] ?? [],
+            dbDir: rtrim($db['dir'] ?? "$dir/backups", '/'),
+            dbKeepDays: $dbKeepDays,
+            mysqldump: $db['mysqldump'] ?? 'mysqldump',
+            mysqldumpOptions: $db['mysqldump_options'] ?? [],
             databases: $databases,
+            filesDir: rtrim($files['dir'] ?? "$dir/backups", '/'),
+            filesKeepDays: $filesKeepDays,
+            paths: $paths,
             uploaders: $uploaders,
             logFile: $log['file'] ?? "$dir/backup.log",
             slackWebhook: $log['slack_webhook'] ?? '',
@@ -73,5 +84,22 @@ readonly class Config
         }
 
         return $databases;
+    }
+
+    private static function paths(array $entries): array
+    {
+        $files = [];
+        foreach ($entries as $name => $entry) {
+            if (is_string($entry)) {
+                $entry = ['path' => $entry];
+            }
+            $files[] = new Files(
+                name: (string) $name,
+                path: rtrim($entry['path'] ?? '', '/'),
+                exclude: $entry['exclude'] ?? [],
+            );
+        }
+
+        return $files;
     }
 }

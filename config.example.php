@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'backup' => [
+    'db' => [
         'dir' => __DIR__ . '/backups',
         'keep_days' => 14,
 
@@ -36,6 +36,15 @@ return [
                 'password' => 'secret',
                 'databases' => ['analytics', 'crm'],
             ],
+        ],
+    ],
+
+    'files' => [
+        'dir' => __DIR__ . '/backups',
+        'keep_days' => 7,
+        'paths' => [
+            'shop_media' => ['path' => '/var/www/shop/public/media', 'exclude' => ['cache', '*.log']],
+            'nginx' => '/etc/nginx',
         ],
     ],
 

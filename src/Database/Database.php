@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace DbBackup\Database;
 
 use RuntimeException;
 
@@ -23,6 +23,6 @@ readonly class Database
 
     public function id(): string
     {
-        return "$this->connection/$this->name";
+        return "db/$this->connection/$this->name";
     }
 }

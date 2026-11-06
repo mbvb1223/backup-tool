@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace DbBackup\Database;
 
 use Closure;
+use DbBackup\Config;
 use RuntimeException;
 
 readonly class MysqlDumper

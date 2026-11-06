@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace DbBackup\Uploader;
 
 use Aws\S3\S3Client;
 use GuzzleHttp\Psr7\Utils;
@@ -61,7 +61,7 @@ readonly class S3Uploader implements Uploader
         $cutoff = time() - $this->keepDays * 86400;
         $objects = $this->s3->getPaginator('ListObjectsV2', ['Bucket' => $this->bucket, 'Prefix' => $dir, 'Delimiter' => '/']);
         foreach ($objects->search('Contents[]') as $object) {
-            if ($object['Key'] !== $newKey && str_ends_with($object['Key'], '.sql.gz') && $object['LastModified']->getTimestamp() < $cutoff) {
+            if ($object['Key'] !== $newKey && str_ends_with($object['Key'], '.gz') && $object['LastModified']->getTimestamp() < $cutoff) {
                 $this->s3->deleteObject(['Bucket' => $this->bucket, 'Key' => $object['Key']]);
             }
         }
