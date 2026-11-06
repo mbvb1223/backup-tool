@@ -14,15 +14,15 @@ readonly class FilesBackup extends Backup
     private Archiver $archiver;
 
     /** @param array<string, Uploader> $uploaders */
-    public function __construct(Config $config, array $uploaders, LoggerInterface $logger)
+    public function __construct(private Files $files, Config $config, array $uploaders, LoggerInterface $logger)
     {
-        parent::__construct($config->filesDir, $config->filesKeepDays, $uploaders, $logger);
+        parent::__construct($files->id(), $config->filesDir, $config->filesKeepDays, $uploaders, $logger);
 
         $this->archiver = new Archiver();
     }
 
-    public function run(Files $files): bool
+    protected function dump(string $dir): string
     {
-        return $this->runLocked($files->id(), fn (string $dir) => $this->archiver->archive($files, $dir));
+        return $this->archiver->archive($this->files, $dir);
     }
 }

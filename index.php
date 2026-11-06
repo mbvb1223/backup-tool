@@ -38,15 +38,12 @@ try {
     exit(1);
 }
 
-$databaseBackup = new DatabaseBackup($config, $uploaders, $logger);
-$filesBackup = new FilesBackup($config, $uploaders, $logger);
-
 $jobs = [];
 foreach ($config->databases as $db) {
-    $jobs['DB']["$db->connection/$db->name"] = fn () => $databaseBackup->run($db);
+    $jobs['DB']["$db->connection/$db->name"] = new DatabaseBackup($db, $config, $uploaders, $logger);
 }
 foreach ($config->paths as $files) {
-    $jobs['Files'][$files->name] = fn () => $filesBackup->run($files);
+    $jobs['Files'][$files->name] = new FilesBackup($files, $config, $uploaders, $logger);
 }
 
 $logger->info(sprintf('Backup started: %d databases, %d files', count($config->databases), count($config->paths)));
@@ -55,9 +52,9 @@ $failed = 0;
 $details = '';
 foreach ($jobs as $type => $typeJobs) {
     $results = ['OK' => [], 'failed' => []];
-    foreach ($typeJobs as $name => $job) {
+    foreach ($typeJobs as $name => $backup) {
         try {
-            $success = $job();
+            $success = $backup->run();
         } catch (Throwable $e) {
             fwrite(STDERR, "$type $name: {$e->getMessage()}\n");
             $success = false;

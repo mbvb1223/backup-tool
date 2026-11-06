@@ -14,15 +14,15 @@ readonly class DatabaseBackup extends Backup
     private MysqlDumper $dumper;
 
     /** @param array<string, Uploader> $uploaders */
-    public function __construct(Config $config, array $uploaders, LoggerInterface $logger)
+    public function __construct(private Database $db, Config $config, array $uploaders, LoggerInterface $logger)
     {
-        parent::__construct($config->dbDir, $config->dbKeepDays, $uploaders, $logger);
+        parent::__construct($db->id(), $config->dbDir, $config->dbKeepDays, $uploaders, $logger);
 
         $this->dumper = new MysqlDumper($config);
     }
 
-    public function run(Database $db): bool
+    protected function dump(string $dir): string
     {
-        return $this->runLocked($db->id(), fn (string $dir) => $this->dumper->dump($db, $dir));
+        return $this->dumper->dump($this->db, $dir);
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace DbBackup;
 
-use Closure;
 use DbBackup\Uploader\Uploader;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Lock\LockFactory;
@@ -16,6 +15,7 @@ abstract readonly class Backup
     private LockFactory $locks;
 
     public function __construct(
+        private string $id,
         private string $dir,
         private ?int $keepDays,
         /** @var array<string, Uploader> */
@@ -25,35 +25,36 @@ abstract readonly class Backup
         $this->locks = new LockFactory(new FlockStore());
     }
 
-    /** @param Closure(string $dir): string $dump */
-    protected function runLocked(string $id, Closure $dump): bool
+    abstract protected function dump(string $dir): string;
+
+    public function run(): bool
     {
-        $lock = $this->locks->createLock("db-backup:$id");
+        $lock = $this->locks->createLock("db-backup:$this->id");
         if (!$lock->acquire()) {
-            $this->logger->error("$id: skipped, previous backup is still running");
+            $this->logger->error("$this->id: skipped, previous backup is still running");
             return false;
         }
 
         try {
-            return $this->backup($id, $dump);
+            return $this->backup();
         } catch (Throwable $e) {
-            $this->logger->error("$id: backup failed: {$e->getMessage()}");
+            $this->logger->error("$this->id: backup failed: {$e->getMessage()}");
             return false;
         } finally {
             $lock->release();
         }
     }
 
-    private function backup(string $id, Closure $dump): bool
+    private function backup(): bool
     {
-        $dir = "$this->dir/$id";
+        $dir = "$this->dir/$this->id";
         $this->deletePartialDumps($dir);
 
         $started = microtime(true);
-        $file = $dump($dir);
-        $this->logger->info(sprintf('%s: dumped to %s (%.1f MB, %.1fs)', $id, $file, filesize($file) / 1048576, microtime(true) - $started));
+        $file = $this->dump($dir);
+        $this->logger->info(sprintf('%s: dumped to %s (%.1f MB, %.1fs)', $this->id, $file, filesize($file) / 1048576, microtime(true) - $started));
 
-        $allUploaded = $this->upload($id, $file);
+        $allUploaded = $this->upload($file);
 
         if ($this->keepDays > 0 || ($this->keepDays === 0 && $allUploaded)) {
             $this->deleteOldDumps($dir, $file);
@@ -65,17 +66,17 @@ abstract readonly class Backup
         return $allUploaded;
     }
 
-    private function upload(string $id, string $file): bool
+    private function upload(string $file): bool
     {
         $allUploaded = true;
         foreach ($this->uploaders as $name => $uploader) {
             $started = microtime(true);
             try {
-                $uploader->upload($file, $id);
-                $this->logger->info(sprintf('%s: uploaded to %s (%.1fs)', $id, $name, microtime(true) - $started));
+                $uploader->upload($file, $this->id);
+                $this->logger->info(sprintf('%s: uploaded to %s (%.1fs)', $this->id, $name, microtime(true) - $started));
             } catch (Throwable $e) {
                 $allUploaded = false;
-                $this->logger->error("$id: upload to $name failed: {$e->getMessage()}");
+                $this->logger->error("$this->id: upload to $name failed: {$e->getMessage()}");
             }
         }
 
