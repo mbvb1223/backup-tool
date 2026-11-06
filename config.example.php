@@ -56,7 +56,7 @@ return [
             'bucket' => 'my-bucket',
             'key' => '',
             'secret' => '',
-            'prefix' => 'db-backup',
+            'prefix' => 'backup-tool',
             'keep_days' => 30,
         ],
     ],

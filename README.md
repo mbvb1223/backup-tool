@@ -1,4 +1,4 @@
-# db-backup
+# backup-tool
 
 Dumps MySQL/MariaDB databases with `mysqldump` and archives folders/files with `tar` into gzipped files, uploads them to S3/R2, each place (local folder, every bucket) with its own retention. Several projects can share one connection; per database you choose all tables, only some, or all except some.
 
@@ -7,7 +7,7 @@ Requirements on the server: PHP 8.2+ (CLI, `zlib`, `simplexml`, `curl`), `mysqld
 ## Install
 
 ```sh
-git clone https://github.com/mbvb1223/db-backup.git && cd db-backup
+git clone https://github.com/mbvb1223/backup-tool.git && cd backup-tool
 composer install --no-dev
 cp config.example.php config.php && chmod 600 config.php   # then edit it
 php index.php
@@ -141,7 +141,7 @@ vendor/bin/dep deploy
 
 Each deploy runs `composer install --no-dev` on the server (Deployer installs Composer into `.dep/` if missing).
 
-Deploys `main` to `/opt/db-backup` (set `DEPLOY_PATH` in `.env` to change it; keep it outside any web root):
+Deploys `main` to `/opt/backup-tool` (set `DEPLOY_PATH` in `.env` to change it; keep it outside any web root):
 
 - `current/` – the code
 - `shared/config.php` – config, kept across deploys
@@ -150,10 +150,10 @@ Deploys `main` to `/opt/db-backup` (set `DEPLOY_PATH` in `.env` to change it; ke
 ### First time on the server
 
 ```sh
-cp /opt/db-backup/current/config.example.php /opt/db-backup/shared/config.php
-chmod 600 /opt/db-backup/shared/config.php
-nano /opt/db-backup/shared/config.php
-php /opt/db-backup/current/index.php    # test run
+cp /opt/backup-tool/current/config.example.php /opt/backup-tool/shared/config.php
+chmod 600 /opt/backup-tool/shared/config.php
+nano /opt/backup-tool/shared/config.php
+php /opt/backup-tool/current/index.php    # test run
 ```
 
 Then add the cron (below). Cron points at `current/`, so later deploys need no changes on the server.
@@ -164,7 +164,7 @@ On the server, `crontab -e` (check the PHP path with `which php`):
 
 ```
 # every day at 02:30
-30 2 * * * /usr/bin/php /opt/db-backup/current/index.php >> /opt/db-backup/shared/backup.log 2>&1
+30 2 * * * /usr/bin/php /opt/backup-tool/current/index.php >> /opt/backup-tool/shared/backup.log 2>&1
 ```
 
 The script writes `backup.log` itself; the redirect only catches PHP crashes that happen before logging starts.

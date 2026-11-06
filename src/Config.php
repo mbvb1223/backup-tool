@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace BackupTool;
 
-use DbBackup\Database\Database;
-use DbBackup\Files\Files;
+use BackupTool\Database\Database;
+use BackupTool\Files\Files;
 use RuntimeException;
 
 readonly class Config

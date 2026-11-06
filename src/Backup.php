@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace DbBackup;
+namespace BackupTool;
 
-use DbBackup\Uploader\Uploader;
+use BackupTool\Uploader\Uploader;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Lock\LockFactory;
 use Symfony\Component\Lock\Store\FlockStore;
@@ -29,7 +29,7 @@ abstract readonly class Backup
 
     public function run(): bool
     {
-        $lock = $this->locks->createLock("db-backup:$this->id");
+        $lock = $this->locks->createLock("backup-tool:$this->id");
         if (!$lock->acquire()) {
             $this->logger->error("$this->id: skipped, previous backup is still running");
             return false;

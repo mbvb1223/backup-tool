@@ -4,8 +4,8 @@ namespace Deployer;
 
 require 'recipe/common.php';
 
-set('application', 'db-backup');
-set('repository', 'git@github.com:mbvb1223/db-backup.git');
+set('application', 'backup-tool');
+set('repository', 'git@github.com:mbvb1223/backup-tool.git');
 set('keep_releases', 2);
 
 set('shared_files', ['config.php']);

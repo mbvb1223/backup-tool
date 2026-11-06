@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace DbBackup\Files;
+namespace BackupTool\Files;
 
-use DbBackup\Backup;
-use DbBackup\Config;
-use DbBackup\Uploader\Uploader;
+use BackupTool\Backup;
+use BackupTool\Config;
+use BackupTool\Uploader\Uploader;
 use Psr\Log\LoggerInterface;
 
 readonly class FilesBackup extends Backup

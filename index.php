@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-use DbBackup\Config;
-use DbBackup\Database\DatabaseBackup;
-use DbBackup\Files\FilesBackup;
-use DbBackup\LoggerFactory;
-use DbBackup\Uploader\UploaderFactory;
+use BackupTool\Backup;
+use BackupTool\Config;
+use BackupTool\Database\DatabaseBackup;
+use BackupTool\Files\FilesBackup;
+use BackupTool\LoggerFactory;
+use BackupTool\Uploader\UploaderFactory;
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
@@ -38,6 +39,7 @@ try {
     exit(1);
 }
 
+/** @var array<string, array<string, Backup>> $jobs */
 $jobs = [];
 foreach ($config->databases as $db) {
     $jobs['DB']["$db->connection/$db->name"] = new DatabaseBackup($db, $config, $uploaders, $logger);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup\Uploader;
+namespace BackupTool\Uploader;
 
 use Aws\S3\S3Client;
 use GuzzleHttp\Psr7\Utils;

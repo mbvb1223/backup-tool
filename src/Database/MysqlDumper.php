@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace DbBackup\Database;
+namespace BackupTool\Database;
 
+use BackupTool\Config;
 use Closure;
-use DbBackup\Config;
 use RuntimeException;
 
 readonly class MysqlDumper
@@ -49,7 +49,7 @@ readonly class MysqlDumper
             }
         }
 
-        $path = tempnam(sys_get_temp_dir(), 'dbbackup');
+        $path = tempnam(sys_get_temp_dir(), 'backup-tool');
         chmod($path, 0600);
         file_put_contents($path, implode("\n", $lines) . "\n");
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup\Database;
+namespace BackupTool\Database;
 
 use RuntimeException;
 

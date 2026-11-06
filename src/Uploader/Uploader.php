@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace DbBackup\Uploader;
+namespace BackupTool\Uploader;
 
 interface Uploader
 {
