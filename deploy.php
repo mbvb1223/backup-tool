@@ -2,6 +2,8 @@
 
 namespace Deployer;
 
+use Dotenv\Dotenv;
+
 require 'recipe/common.php';
 
 set('application', 'backup-tool');
@@ -11,7 +13,7 @@ set('keep_releases', 2);
 set('shared_files', ['config.php']);
 set('shared_dirs', ['backups']);
 
-$dotenv = \Dotenv\Dotenv::createArrayBacked(__DIR__);
+$dotenv = Dotenv::createArrayBacked(__DIR__);
 $env = $dotenv->safeLoad();
 $dotenv->required(['DEPLOY_HOST', 'DEPLOY_USER'])->notEmpty();
 

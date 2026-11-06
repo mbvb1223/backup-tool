@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use BackupTool\Backup;
 use BackupTool\Config;
 use BackupTool\Database\Database;
 use BackupTool\Database\DatabaseBackup;
@@ -55,6 +56,8 @@ $backups = [
 
 $logger->info(sprintf('Backup started: %d databases, %d paths', count($config->databases), count($config->paths)));
 $results = ['ok' => [], 'failed' => []];
+
+/** @var Backup $backup */
 foreach ($backups as $backup) {
     $results[$backup->run() ? 'ok' : 'failed'][] = $backup->id;
 }
