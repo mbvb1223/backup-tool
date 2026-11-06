@@ -47,7 +47,7 @@ readonly class S3Uploader implements Uploader
         $this->s3->upload($this->bucket, $key, Utils::tryFopen($file, 'r'), acl: null);
 
         if ($this->keepDays !== null) {
-            $this->deleteOldDumps($dir, $key);
+            $this->deleteOldBackups($dir, $key);
         }
     }
 
@@ -56,7 +56,7 @@ readonly class S3Uploader implements Uploader
         return $this->prefix === '' ? $name : "$this->prefix/$name";
     }
 
-    private function deleteOldDumps(string $dir, string $newKey): void
+    private function deleteOldBackups(string $dir, string $newKey): void
     {
         $cutoff = time() - $this->keepDays * 86400;
         $objects = $this->s3->getPaginator('ListObjectsV2', ['Bucket' => $this->bucket, 'Prefix' => $dir, 'Delimiter' => '/']);

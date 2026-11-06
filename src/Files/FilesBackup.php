@@ -21,7 +21,7 @@ readonly class FilesBackup extends Backup
         $this->archiver = new Archiver();
     }
 
-    protected function dump(string $dir): string
+    protected function createBackupFile(string $dir): string
     {
         return $this->archiver->archive($this->files, $dir);
     }

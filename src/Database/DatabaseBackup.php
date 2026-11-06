@@ -21,7 +21,7 @@ readonly class DatabaseBackup extends Backup
         $this->dumper = new MysqlDumper($config);
     }
 
-    protected function dump(string $dir): string
+    protected function createBackupFile(string $dir): string
     {
         return $this->dumper->dump($this->db, $dir);
     }

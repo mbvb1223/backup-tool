@@ -25,7 +25,7 @@ abstract readonly class Backup
         $this->locks = new LockFactory(new FlockStore());
     }
 
-    abstract protected function dump(string $dir): string;
+    abstract protected function createBackupFile(string $dir): string;
 
     public function run(): bool
     {
@@ -48,16 +48,16 @@ abstract readonly class Backup
     private function backup(): bool
     {
         $dir = "$this->dir/$this->id";
-        $this->deletePartialDumps($dir);
+        $this->deletePartialFiles($dir);
 
         $started = microtime(true);
-        $file = $this->dump($dir);
-        $this->logger->info(sprintf('%s: dumped to %s (%.1f MB, %.1fs)', $this->id, $file, filesize($file) / 1048576, microtime(true) - $started));
+        $file = $this->createBackupFile($dir);
+        $this->logger->info(sprintf('%s: written to %s (%.1f MB, %.1fs)', $this->id, $file, filesize($file) / 1048576, microtime(true) - $started));
 
         $allUploaded = $this->upload($file);
 
         if ($this->keepDays > 0 || ($this->keepDays === 0 && $allUploaded)) {
-            $this->deleteOldDumps($dir, $file);
+            $this->deleteOldBackups($dir, $file);
         }
         if ($this->keepDays === 0 && $allUploaded) {
             $this->delete($file);
@@ -83,18 +83,18 @@ abstract readonly class Backup
         return $allUploaded;
     }
 
-    private function deletePartialDumps(string $dir): void
+    private function deletePartialFiles(string $dir): void
     {
         foreach (glob("$dir/*.part") ?: [] as $file) {
             unlink($file);
         }
     }
 
-    private function deleteOldDumps(string $dir, string $newDump): void
+    private function deleteOldBackups(string $dir, string $newFile): void
     {
         $cutoff = time() - $this->keepDays * 86400;
         foreach (glob("$dir/*.gz") ?: [] as $file) {
-            if ($file !== $newDump && filemtime($file) < $cutoff) {
+            if ($file !== $newFile && filemtime($file) < $cutoff) {
                 $this->delete($file);
             }
         }
